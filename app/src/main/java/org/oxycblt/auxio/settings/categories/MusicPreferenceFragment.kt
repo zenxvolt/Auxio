@@ -18,6 +18,7 @@
  
 package org.oxycblt.auxio.settings.categories
 
+import android.text.format.Formatter
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -27,13 +28,17 @@ import androidx.preference.Preference
 import coil3.ImageLoader
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.oxycblt.auxio.R
+import org.oxycblt.auxio.jellyfin.JellyfinAudioCache
 import org.oxycblt.auxio.jellyfin.JellyfinSessionStore
 import org.oxycblt.auxio.music.MusicViewModel
 import org.oxycblt.auxio.settings.BasePreferenceFragment
 import org.oxycblt.auxio.settings.ui.WrappedDialogPreference
 import org.oxycblt.auxio.util.navigateSafe
+import org.oxycblt.auxio.util.showToast
 import timber.log.Timber as L
 
 /**
@@ -46,6 +51,7 @@ class MusicPreferenceFragment : BasePreferenceFragment(R.xml.preferences_music) 
     private val musicModel: MusicViewModel by viewModels()
     @Inject lateinit var imageLoader: ImageLoader
     @Inject lateinit var jellyfinStore: JellyfinSessionStore
+    @Inject lateinit var audioCache: JellyfinAudioCache
 
     override fun onOpenDialogPreference(preference: WrappedDialogPreference) {
         if (preference.key == getString(R.string.set_key_separators)) {
@@ -77,6 +83,39 @@ class MusicPreferenceFragment : BasePreferenceFragment(R.xml.preferences_music) 
                 }
             }
         }
+        if (preference.key == getString(R.string.set_key_stream_cache)) {
+            L.d("Configuring streaming cache setting")
+            preference.onPreferenceChangeListener =
+                Preference.OnPreferenceChangeListener { _, value ->
+                    // The cache shrinks by itself the next time something is streamed, but a
+                    // smaller limit (or turning it off) should free the space right away.
+                    val limitBytes = (value as Int).toLong() * 1024L * 1024L
+                    L.d("Streaming cache limit changed, trimming to $limitBytes bytes")
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        withContext(Dispatchers.IO) { audioCache.trim(limitBytes) }
+                        findPreference<Preference>(getString(R.string.set_key_stream_cache_clear))
+                            ?.let { updateStreamCacheUsage(it) }
+                    }
+                    true
+                }
+        }
+        if (preference.key == getString(R.string.set_key_stream_cache_clear)) {
+            L.d("Configuring clear streaming cache setting")
+            viewLifecycleOwner.lifecycleScope.launch {
+                viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    updateStreamCacheUsage(preference)
+                }
+            }
+            preference.onPreferenceClickListener = Preference.OnPreferenceClickListener {
+                L.d("Clearing streaming cache")
+                viewLifecycleOwner.lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { audioCache.clear() }
+                    requireContext().showToast(R.string.lbl_stream_cache_cleared)
+                    updateStreamCacheUsage(preference)
+                }
+                true
+            }
+        }
         if (preference.key == getString(R.string.set_key_cover_mode)) {
             L.d("Configuring cover mode setting")
             preference.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
@@ -101,5 +140,15 @@ class MusicPreferenceFragment : BasePreferenceFragment(R.xml.preferences_music) 
                 true
             }
         }
+    }
+
+    /** Show how much space the streaming cache takes up in the summary of [preference]. */
+    private suspend fun updateStreamCacheUsage(preference: Preference) {
+        val used = withContext(Dispatchers.IO) { audioCache.usedBytes() }
+        preference.summary =
+            getString(
+                R.string.fmt_stream_cache_usage,
+                Formatter.formatShortFileSize(requireContext(), used),
+            )
     }
 }

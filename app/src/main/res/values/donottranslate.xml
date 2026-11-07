@@ -9,6 +9,10 @@
     <string name="fmt_number" translatable="false">%d</string>
     <string name="fmt_zipped_names" translatable="false">%1$s (%2$s)</string>
     <string name="fmt_date_range" translatable="false">%s - %s</string>
+    <string name="set_stream_cache_256" translatable="false">256 MB</string>
+    <string name="set_stream_cache_512" translatable="false">512 MB</string>
+    <string name="set_stream_cache_1024" translatable="false">1 GB</string>
+    <string name="set_stream_cache_2048" translatable="false">2 GB</string>
 
     <!-- Codec Namespace | Format names -->
     <string name="cdc_vorbis">Vorbis</string>

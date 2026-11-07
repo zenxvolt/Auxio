@@ -5,6 +5,10 @@
         <exclude
             domain="database"
             path="music_cache.db" />
+        <!-- The index of the streaming cache, whose files are never backed up -->
+        <exclude
+            domain="database"
+            path="exoplayer_internal.db" />
         <!-- The Jellyfin access token and catalog only mean something on the device that made them -->
         <exclude
             domain="sharedpref"
@@ -17,6 +21,10 @@
         <exclude
             domain="database"
             path="music_cache.db" />
+        <!-- The index of the streaming cache, whose files are never backed up -->
+        <exclude
+            domain="database"
+            path="exoplayer_internal.db" />
         <!-- The Jellyfin access token and catalog only mean something on the device that made them -->
         <exclude
             domain="sharedpref"

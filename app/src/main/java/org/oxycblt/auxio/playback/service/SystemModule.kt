@@ -26,6 +26,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.ExtractorsFactory
@@ -45,7 +46,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.io.IOException
 import org.oxycblt.auxio.BuildConfig
+import org.oxycblt.auxio.jellyfin.JellyfinAudioCache
 import org.oxycblt.auxio.jellyfin.JellyfinAuthorizer
+import org.oxycblt.auxio.jellyfin.JellyfinSessionStore
+import org.oxycblt.auxio.jellyfin.JellyfinStreamKey
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -61,6 +65,8 @@ class SystemModule {
     fun dataSourceFactory(
         @ApplicationContext context: Context,
         authorizer: JellyfinAuthorizer,
+        audioCache: JellyfinAudioCache,
+        sessionStore: JellyfinSessionStore,
     ): DataSource.Factory {
         // Songs are either on the device (content URIs) or streamed from the Jellyfin server that
         // the user signed in to. Nothing else is ever opened, and the access token is only ever
@@ -70,12 +76,43 @@ class SystemModule {
                 .setUserAgent("Auxio/${BuildConfig.VERSION_NAME}")
                 .setConnectTimeoutMs(HTTP_TIMEOUT_MS)
                 .setReadTimeoutMs(HTTP_TIMEOUT_MS)
-        return ResolvingDataSource.Factory(DefaultDataSource.Factory(context, http)) { dataSpec ->
+        val authorized =
+            ResolvingDataSource.Factory(http) { dataSpec ->
+                dataSpec.withAdditionalHeaders(authorizer.headersFor(dataSpec.uri.toString()))
+            }
+        // The cache sits in front of the authorizer, so that a song that is already on the device
+        // plays without asking anything of the server, even when it can't be reached. Only the
+        // parts that are missing go through the authorizer. Every account has its own cache, see
+        // JellyfinAudioCache. The cache is only set up once a song is streamed.
+        val cached by lazy {
+            CacheDataSource.Factory()
+                .setCache(audioCache.cache)
+                .setUpstreamDataSourceFactory(authorized)
+                .setCacheKeyFactory { dataSpec ->
+                    // The player always passes the key of the song, see ExoPlaybackStateHolder.
+                    // Falling back to the URL is only a safety net.
+                    dataSpec.key
+                        ?: JellyfinStreamKey.of(dataSpec.uri.toString(), 0)
+                        ?: dataSpec.uri.toString()
+                }
+                // A broken cache must never stop a song from playing, it's only a nicety.
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        }
+        // This is checked whenever a song starts loading, so turning the cache off (or on) applies
+        // to the very next song. DefaultDataSource asks for a remote source even for songs on the
+        // device, so someone who isn't signed in never even sets up the cache.
+        val remote = DataSource.Factory {
+            if (audioCache.enabled && sessionStore.session() != null) {
+                cached.createDataSource()
+            } else {
+                authorized.createDataSource()
+            }
+        }
+        return ResolvingDataSource.Factory(DefaultDataSource.Factory(context, remote)) { dataSpec ->
             when (dataSpec.uri.scheme) {
-                ContentResolver.SCHEME_CONTENT -> dataSpec
+                ContentResolver.SCHEME_CONTENT,
                 "http",
-                "https" ->
-                    dataSpec.withAdditionalHeaders(authorizer.headersFor(dataSpec.uri.toString()))
+                "https" -> dataSpec
                 else -> throw IOException("Refusing to open ${dataSpec.uri.scheme} URI")
             }
         }

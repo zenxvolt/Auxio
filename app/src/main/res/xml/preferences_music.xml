@@ -35,6 +35,19 @@
             app:summary="@string/set_jellyfin_desc"
             app:title="@string/set_jellyfin" />
 
+        <org.oxycblt.auxio.settings.ui.IntListPreference
+            app:defaultValue="@integer/stream_cache_default"
+            app:entries="@array/entries_stream_cache"
+            app:entryValues="@array/values_stream_cache"
+            app:key="@string/set_key_stream_cache"
+            app:offValue="@integer/stream_cache_off"
+            app:title="@string/set_stream_cache" />
+
+        <Preference
+            app:dependency="@string/set_key_stream_cache"
+            app:key="@string/set_key_stream_cache_clear"
+            app:title="@string/set_stream_cache_clear" />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/set_images">

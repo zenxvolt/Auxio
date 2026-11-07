@@ -27,6 +27,8 @@
     <string name="set_key_filtered_locations" translatable="false">auxio_filtered_locations</string>
     <string name="set_key_separators" translatable="false">auxio_separators</string>
     <string name="set_key_jellyfin" translatable="false">auxio_jellyfin</string>
+    <string name="set_key_stream_cache" translatable="false">auxio_stream_cache_size</string>
+    <string name="set_key_stream_cache_clear" translatable="false">auxio_stream_cache_clear</string>
     <string name="set_key_auto_sort_names" translatable="false">auxio_auto_sort_names</string>
     <string name="set_key_locations_mode" translatable="false">auxio_locations_mode</string>
 
@@ -99,6 +101,23 @@
         <item>@integer/cover_mode_balanced</item>
         <item>@integer/cover_mode_high_quality</item>
         <item>@integer/cover_mode_as_is</item>
+    </integer-array>
+
+    <!-- The size of the streaming cache, in megabytes. -->
+    <string-array name="entries_stream_cache">
+        <item>@string/set_stream_cache_off</item>
+        <item>@string/set_stream_cache_256</item>
+        <item>@string/set_stream_cache_512</item>
+        <item>@string/set_stream_cache_1024</item>
+        <item>@string/set_stream_cache_2048</item>
+    </string-array>
+
+    <integer-array name="values_stream_cache">
+        <item>@integer/stream_cache_off</item>
+        <item>256</item>
+        <item>@integer/stream_cache_default</item>
+        <item>1024</item>
+        <item>2048</item>
     </integer-array>
 
     <string-array name="entries_bar_action">
@@ -186,4 +205,7 @@
     <integer name="cover_mode_balanced">0xA11D</integer>
     <integer name="cover_mode_high_quality">0xA11E</integer>
     <integer name="cover_mode_as_is">0xA126</integer>
+
+    <integer name="stream_cache_off">0</integer>
+    <integer name="stream_cache_default">512</integer>
 </resources>

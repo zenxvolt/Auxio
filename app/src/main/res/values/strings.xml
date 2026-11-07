@@ -371,6 +371,11 @@
     <string name="err_jellyfin_empty">Enter the address of your server and your username</string>
     <string name="err_remote_playback">Could not stream from Jellyfin. Check your connection and sign-in.</string>
     <string name="err_share_remote">Songs from Jellyfin cannot be shared</string>
+    <string name="set_stream_cache">Streaming cache</string>
+    <string name="set_stream_cache_off">Off</string>
+    <string name="set_stream_cache_clear">Clear streaming cache</string>
+    <string name="fmt_stream_cache_usage">%s used</string>
+    <string name="lbl_stream_cache_cleared">Streaming cache cleared</string>
 
     <!-- Error Namespace | Error Labels -->
     <string name="err_index_failed">Music loading failed</string>

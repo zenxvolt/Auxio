@@ -19,12 +19,14 @@
 package org.oxycblt.auxio.jellyfin
 
 import android.content.Context
+import androidx.preference.PreferenceManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import org.oxycblt.auxio.R
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -36,4 +38,16 @@ class JellyfinModule {
     @Provides
     @Singleton
     fun snapshotStore(@ApplicationContext context: Context) = JellyfinSnapshotStore(context)
+
+    @Provides
+    @Singleton
+    fun audioCache(@ApplicationContext context: Context): JellyfinAudioCache {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+        val key = context.getString(R.string.set_key_stream_cache)
+        val default = context.resources.getInteger(R.integer.stream_cache_default)
+        // The setting is in megabytes. Reading it is a lookup in memory, so it's done every time.
+        return JellyfinAudioCache(context) { prefs.getInt(key, default).coerceAtLeast(0) * MB }
+    }
 }
+
+private const val MB = 1024L * 1024L

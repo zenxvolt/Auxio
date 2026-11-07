@@ -123,4 +123,22 @@ class JellyfinUrlsTest {
     fun normalize_unparseable_isNull() {
         assertNull(JellyfinUrls.normalize("not a url"))
     }
+
+    @Test
+    fun streamItemId_isInverseOfStream() {
+        for (id in listOf("abc123", "a/b", "with space", "ünï")) {
+            for (server in listOf("https://example.com", "http://10.0.0.2:8096/jf")) {
+                assertEquals(id, JellyfinUrls.streamItemId(JellyfinUrls.stream(server, id)))
+            }
+        }
+    }
+
+    @Test
+    fun streamItemId_otherUrls_areNull() {
+        assertNull(JellyfinUrls.streamItemId("content://media/external/audio/media/5"))
+        assertNull(JellyfinUrls.streamItemId("https://example.com/Items/abc/Images/Primary"))
+        assertNull(JellyfinUrls.streamItemId("https://example.com/Audio//stream"))
+        assertNull(JellyfinUrls.streamItemId("https://example.com/Audio/abc/stream/extra"))
+        assertNull(JellyfinUrls.streamItemId("not a url"))
+    }
 }

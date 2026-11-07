@@ -63,6 +63,11 @@
     <string name="err_jellyfin_empty">Isi alamat server dan nama pengguna Anda</string>
     <string name="err_remote_playback">Tidak dapat streaming dari Jellyfin. Periksa koneksi dan sesi masuk Anda.</string>
     <string name="err_share_remote">Lagu dari Jellyfin tidak dapat dibagikan</string>
+    <string name="set_stream_cache">Cache streaming</string>
+    <string name="set_stream_cache_off">Mati</string>
+    <string name="set_stream_cache_clear">Hapus cache streaming</string>
+    <string name="fmt_stream_cache_usage">%s terpakai</string>
+    <string name="lbl_stream_cache_cleared">Cache streaming dihapus</string>
 
     <!-- Error Namespace | Error Labels -->
     <!-- Hint Namespace | EditText Hints -->

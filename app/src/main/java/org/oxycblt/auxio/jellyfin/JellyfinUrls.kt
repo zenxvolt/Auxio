@@ -19,12 +19,14 @@
 package org.oxycblt.auxio.jellyfin
 
 import java.net.URI
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.Locale
 
 /** Pure helpers for building the URLs and headers needed to talk to a Jellyfin server. */
 object JellyfinUrls {
     private const val STREAM_PATH = "/Audio/%s/stream?static=true"
+    private val STREAM_ID = Regex("/Audio/([^/]+)/stream$")
 
     /**
      * Interpret whatever the user typed as a server address.
@@ -93,6 +95,31 @@ object JellyfinUrls {
      * @param itemId The ID of the song.
      */
     fun stream(serverUrl: String, itemId: String) = serverUrl + STREAM_PATH.format(encode(itemId))
+
+    /**
+     * The inverse of [stream]: get the ID of the song that a URL streams.
+     *
+     * @param url The URL to look at.
+     * @return The ID of the song, or null if [url] is not a URL that [stream] makes.
+     */
+    fun streamItemId(url: String): String? {
+        val uri =
+            try {
+                URI(url)
+            } catch (e: java.net.URISyntaxException) {
+                return null
+            }
+        val scheme = uri.scheme?.lowercase(Locale.ROOT)
+        if (scheme != "http" && scheme != "https") {
+            return null
+        }
+        val encoded = STREAM_ID.find(uri.rawPath.orEmpty())?.groupValues?.get(1) ?: return null
+        return try {
+            URLDecoder.decode(encoded, "UTF-8").takeIf { it.isNotBlank() }
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+    }
 
     /**
      * The URL of the primary image of an item.

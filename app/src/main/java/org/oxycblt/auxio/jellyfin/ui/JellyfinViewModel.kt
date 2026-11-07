@@ -34,8 +34,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.jellyfin.JellyfinApi
+import org.oxycblt.auxio.jellyfin.JellyfinAudioCache
 import org.oxycblt.auxio.jellyfin.JellyfinException
 import org.oxycblt.auxio.jellyfin.JellyfinServer
 import org.oxycblt.auxio.jellyfin.JellyfinSession
@@ -61,6 +63,7 @@ constructor(
     private val snapshots: JellyfinSnapshotStore,
     private val api: JellyfinApi,
     private val musicRepository: MusicRepository,
+    private val audioCache: JellyfinAudioCache,
 ) : ViewModel(), MusicRepository.IndexingListener {
     /** The account that is signed in, and how it last synchronized. */
     data class Account(val session: JellyfinSession, val sync: JellyfinSyncState?)
@@ -127,7 +130,18 @@ constructor(
             try {
                 val server = findServer(candidates)
                 val session = api.signIn(server, username.trim(), password, store.device())
-                // Songs of any earlier account must never be shown for this one.
+                // Songs of any earlier account must never be shown (or played) for this one. The
+                // cache is emptied before the new account is saved, so that dying in between
+                // can't leave the songs of the old account behind for the new one. Signing in to
+                // the same account again (i.e because the session expired) keeps them.
+                val previous = store.session()
+                if (
+                    previous == null ||
+                        previous.serverUrl != session.serverUrl ||
+                        previous.userId != session.userId
+                ) {
+                    withContext(Dispatchers.IO) { audioCache.clear() }
+                }
                 snapshots.clear()
                 store.save(session)
                 musicRepository.requestIndex(true)
@@ -155,7 +169,9 @@ constructor(
         store.clear()
         snapshots.clear()
         musicRepository.requestIndex(true)
-        // The dialog is probably closed right after this, so it can't be tied to its scope.
+        // The dialog is probably closed right after this, so it can't be tied to its scope. The
+        // streamed songs are of the account that is gone, and nobody can play them anymore.
+        revokeScope.launch { audioCache.clear() }
         revokeScope.launch { api.signOut(session, device) }
     }
 

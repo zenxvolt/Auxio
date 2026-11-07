@@ -52,6 +52,7 @@ import kotlinx.coroutines.yield
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.image.ImageSettings
 import org.oxycblt.auxio.jellyfin.JellyfinException
+import org.oxycblt.auxio.jellyfin.JellyfinStreamKey
 import org.oxycblt.auxio.music.MusicRepository
 import org.oxycblt.auxio.playback.PlaybackSettings
 import org.oxycblt.auxio.playback.persist.PersistenceRepository
@@ -660,7 +661,14 @@ class ExoPlaybackStateHolder(
         currentSaveJob = saveScope.launch { block() }
     }
 
-    private fun Song.buildMediaItem() = MediaItem.Builder().setUri(uri).setTag(this).build()
+    private fun Song.buildMediaItem() =
+        MediaItem.Builder()
+            .setUri(uri)
+            // Streamed songs are cached by song rather than by URL, see JellyfinStreamKey.
+            // Songs on the device aren't cached, they have no key.
+            .setCustomCacheKey(JellyfinStreamKey.of(uri.toString(), size))
+            .setTag(this)
+            .build()
 
     private val MediaItem.song: Song?
         get() = this.localConfiguration?.tag as? Song?
