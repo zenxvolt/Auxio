@@ -7,6 +7,13 @@
         <item name="android:layout_height">wrap_content</item>
         <!-- Fix flickering lift animation when scrolling quickly -->
         <item name="android:stateListAnimator">@null</item>
+        <!--
+        Keep the top bar transparent, both at rest and when "lifted" by scrolling. Every screen
+        that hosts an app bar already paints ?attr/colorSurface behind it, so the bar blends into
+        the page instead of showing Material's tinted (colorSurfaceContainer) lift color.
+        -->
+        <item name="android:background">@android:color/transparent</item>
+        <item name="liftOnScrollColor">@android:color/transparent</item>
     </style>
 
     <!-- Base toolbar style -->

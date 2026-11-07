@@ -29,6 +29,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
 import androidx.media3.exoplayer.BaseRenderer
 import androidx.media3.exoplayer.ExoPlayer
@@ -48,7 +49,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import org.oxycblt.auxio.R
 import org.oxycblt.auxio.image.ImageSettings
+import org.oxycblt.auxio.jellyfin.JellyfinException
 import org.oxycblt.auxio.music.MusicRepository
 import org.oxycblt.auxio.playback.PlaybackSettings
 import org.oxycblt.auxio.playback.persist.PersistenceRepository
@@ -62,6 +65,7 @@ import org.oxycblt.auxio.playback.state.RawQueue
 import org.oxycblt.auxio.playback.state.RepeatMode
 import org.oxycblt.auxio.playback.state.ShuffleMode
 import org.oxycblt.auxio.playback.state.StateAck
+import org.oxycblt.auxio.util.showToast
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L
@@ -88,6 +92,8 @@ class ExoPlaybackStateHolder(
     private val restoreScope = CoroutineScope(Dispatchers.IO + saveJob)
     private var currentSaveJob: Job? = null
     private var openAudioEffectSession = false
+    // The player is built with WAKE_MODE_LOCAL, see Factory.
+    private var currentWakeMode = C.WAKE_MODE_LOCAL
 
     var sessionOngoing = false
         private set
@@ -225,6 +231,9 @@ class ExoPlaybackStateHolder(
     }
 
     override fun playing(playing: Boolean) {
+        if (playing) {
+            prepareIfIdle()
+        }
         player.playWhenReady = playing
     }
 
@@ -278,6 +287,7 @@ class ExoPlaybackStateHolder(
     }
 
     override fun next() {
+        prepareIfIdle()
         // Replicate the old pseudo-circular queue behavior when no repeat option is implemented.
         // Basically, you can't skip back and wrap around the queue, but you can skip forward and
         // wrap around the queue, albeit playback will be paused.
@@ -302,6 +312,7 @@ class ExoPlaybackStateHolder(
     }
 
     override fun prev() {
+        prepareIfIdle()
         if (playbackSettings.rewindWithPrev) {
             player.seekToPrevious()
         } else if (player.hasPreviousMediaItem()) {
@@ -323,6 +334,7 @@ class ExoPlaybackStateHolder(
         }
 
         val trueIndex = indices[index]
+        prepareIfIdle()
         player.seekTo(trueIndex, C.TIME_UNSET) // Handles remaining custom logic
         if (!playbackSettings.rememberPause) {
             player.play()
@@ -520,15 +532,71 @@ class ExoPlaybackStateHolder(
             L.d("Player state changed, must synchronize state")
             playbackManager.ack(this, StateAck.ProgressionChanged)
         }
+
+        if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED)) {
+            updateWakeMode()
+        }
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        // TODO: Replace with no skipping and a notification instead
-        // If there's any issue, just go to the next song.
         L.e("Player error occurred")
         L.e(error.stackTraceToString())
+        if (error.isRemoteFailure()) {
+            // A server that can't be reached will fail every remaining song of the queue that
+            // lives on it in exactly the same way, so skipping ahead would only burn through the
+            // whole queue. Stay on this song instead. The player is idle after an error, so it
+            // is prepared again once the user presses play (or moves to another song).
+            player.pause()
+            context.showToast(R.string.err_remote_playback)
+            return
+        }
+        // TODO: Replace with no skipping and a notification instead
+        // If there's any issue, just go to the next song.
         player.prepare()
         playbackManager.next()
+    }
+
+    /**
+     * Whether this error says something about the connection to the server, rather than about the
+     * song that was being played.
+     */
+    private fun PlaybackException.isRemoteFailure(): Boolean {
+        if (generateSequence(cause) { it.cause }.any { it is JellyfinException }) {
+            // Not signed in, or signed in somewhere else.
+            return true
+        }
+        return when (errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> true
+            // A song that was deleted on the server (404) is just a broken song. Anything else
+            // (i.e a rejected token, or a server that's down) is a problem with the connection.
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode != 404
+            else -> false
+        }
+    }
+
+    /** A failed player stays idle until it's prepared again. */
+    private fun prepareIfIdle() {
+        if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0) {
+            player.prepare()
+        }
+    }
+
+    /**
+     * Streaming needs the network to be awake too, local playback only needs the CPU. Holding the
+     * wake lock that keeps the network up for songs that are on the device would only cost
+     * battery.
+     */
+    private fun updateWakeMode() {
+        val scheme = player.currentMediaItem?.localConfiguration?.uri?.scheme
+        val wakeMode =
+            if (scheme == "http" || scheme == "https") C.WAKE_MODE_NETWORK else C.WAKE_MODE_LOCAL
+        // These events are frequent and re-applying the same mode still touches the wake locks.
+        if (wakeMode != currentWakeMode) {
+            currentWakeMode = wakeMode
+            player.setWakeMode(wakeMode)
+        }
     }
 
     private fun broadcastAudioEffectAction(event: String) {

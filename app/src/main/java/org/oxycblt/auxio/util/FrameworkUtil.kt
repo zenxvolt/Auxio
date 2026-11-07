@@ -19,6 +19,7 @@
 package org.oxycblt.auxio.util
 
 import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -347,10 +348,17 @@ fun Context.share(parent: MusicParent) = share(parent.songs)
  */
 fun Context.share(songs: Collection<Song>) {
     if (songs.isEmpty()) return
-    L.d("Showing sharesheet for ${songs.size} songs")
+    // Songs that are streamed from a server don't have a file that another app could be given,
+    // and their address means nothing without the account of the user.
+    val shareable = songs.filter { it.uri.scheme == ContentResolver.SCHEME_CONTENT }
+    if (shareable.isEmpty()) {
+        showToast(R.string.err_share_remote)
+        return
+    }
+    L.d("Showing sharesheet for ${shareable.size} songs")
     val builder = ShareCompat.IntentBuilder(this)
     val mimeTypes = mutableSetOf<String>()
-    for (song in songs) {
+    for (song in shareable) {
         builder.addStream(song.uri)
         mimeTypes.add(song.format.mimeType)
     }
@@ -358,10 +366,10 @@ fun Context.share(songs: Collection<Song>) {
     try {
         builder.setType(mimeTypes.singleOrNull() ?: "audio/*").startChooser()
     } catch (e: TransactionTooLargeException) {
-        L.e("Failed to share ${songs.size} songs: Too large")
+        L.e("Failed to share ${shareable.size} songs: Too large")
         showToast(R.string.err_share_too_large)
     } catch (e: Exception) {
-        L.e("Failed to share ${songs.size} songs: $e")
+        L.e("Failed to share ${shareable.size} songs: $e")
         showToast(R.string.err_share_failed)
     }
 }

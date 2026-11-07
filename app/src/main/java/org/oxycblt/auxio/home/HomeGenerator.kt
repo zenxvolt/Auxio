@@ -20,9 +20,11 @@ package org.oxycblt.auxio.home
 
 import javax.inject.Inject
 import org.oxycblt.auxio.home.tabs.Tab
+import org.oxycblt.auxio.jellyfin.JellyfinSessionStore
 import org.oxycblt.auxio.list.ListSettings
 import org.oxycblt.auxio.list.adapter.UpdateInstructions
 import org.oxycblt.auxio.music.MusicRepository
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
@@ -36,17 +38,31 @@ interface HomeGenerator {
 
     fun release()
 
-    fun empty(): Boolean
+    /** Whether there is a Jellyfin account, which is what makes the [MusicSource]s selectable. */
+    fun hasJellyfin(): Boolean
 
-    fun songs(): List<Song>
+    /**
+     * Whether there is no music to show.
+     *
+     * @param source Only consider the music of this [MusicSource]. If null, or if there is no
+     *   Jellyfin account, all music is considered.
+     */
+    fun empty(source: MusicSource? = null): Boolean
 
-    fun albums(): List<Album>
+    /**
+     * The functions below generate the lists of the home view, limited to a [MusicSource]. An item
+     * belongs to a source if any of its songs does, the songs of an album are the songs it has. If
+     * the source is null, or if there is no Jellyfin account, nothing is limited.
+     */
+    fun songs(source: MusicSource? = null): List<Song>
 
-    fun artists(): List<Artist>
+    fun albums(source: MusicSource? = null): List<Album>
 
-    fun genres(): List<Genre>
+    fun artists(source: MusicSource? = null): List<Artist>
 
-    fun playlists(): List<Playlist>
+    fun genres(source: MusicSource? = null): List<Genre>
+
+    fun playlists(source: MusicSource? = null): List<Playlist>
 
     fun tabs(): List<MusicType>
 
@@ -54,6 +70,9 @@ interface HomeGenerator {
         fun invalidateEmpty() {}
 
         fun invalidateMusic(type: MusicType, instructions: UpdateInstructions)
+
+        /** Whether there is a Jellyfin account changed, which means the sources changed. */
+        fun invalidateSources() {}
 
         fun invalidateTabs()
     }
@@ -69,9 +88,10 @@ constructor(
     private val homeSettings: HomeSettings,
     private val listSettings: ListSettings,
     private val musicRepository: MusicRepository,
+    private val jellyfin: JellyfinSessionStore,
 ) : HomeGenerator.Factory {
     override fun create(invalidator: HomeGenerator.Invalidator): HomeGenerator =
-        HomeGeneratorImpl(invalidator, homeSettings, listSettings, musicRepository)
+        HomeGeneratorImpl(invalidator, homeSettings, listSettings, musicRepository, jellyfin)
 }
 
 private class HomeGeneratorImpl(
@@ -79,7 +99,12 @@ private class HomeGeneratorImpl(
     private val homeSettings: HomeSettings,
     private val listSettings: ListSettings,
     private val musicRepository: MusicRepository,
+    private val jellyfin: JellyfinSessionStore,
 ) : HomeGenerator, HomeSettings.Listener, ListSettings.Listener, MusicRepository.UpdateListener {
+    // The account only matters to the lists once the library has been reloaded to match it, so
+    // this follows it from there instead of reading the account every time.
+    private var signedInToJellyfin = jellyfin.session() != null
+
     override fun attach() {
         homeSettings.registerListener(this)
         listSettings.registerListener(this)
@@ -123,6 +148,13 @@ private class HomeGeneratorImpl(
     }
 
     override fun onMusicChanges(changes: MusicRepository.Changes) {
+        val signedIn = jellyfin.session() != null
+        if (signedIn != signedInToJellyfin) {
+            L.d("Jellyfin account changed, sources must change")
+            signedInToJellyfin = signedIn
+            invalidator.invalidateSources()
+        }
+
         invalidator.invalidateEmpty()
 
         val library = musicRepository.library
@@ -148,17 +180,43 @@ private class HomeGeneratorImpl(
         homeSettings.unregisterListener(this)
     }
 
-    override fun empty() = musicRepository.library?.empty() ?: true
+    override fun hasJellyfin() = signedInToJellyfin
 
-    override fun songs() =
-        musicRepository.library?.let { listSettings.songSort.songs(it.songs) } ?: emptyList()
+    override fun empty(source: MusicSource?): Boolean {
+        val library = musicRepository.library ?: return true
+        val limit = effective(source) ?: return library.empty()
+        return library.songs.none { it in limit }
+    }
 
-    override fun albums() =
-        musicRepository.library?.let { listSettings.albumSort.albums(it.albums) } ?: emptyList()
+    override fun songs(source: MusicSource?) =
+        musicRepository.library?.let { library ->
+            val limit = effective(source)
+            val songs = if (limit != null) library.songs.filter { it in limit } else library.songs
+            listSettings.songSort.songs(songs)
+        } ?: emptyList()
 
-    override fun artists() =
-        musicRepository.library?.let { deviceLibrary ->
-            val sorted = listSettings.artistSort.artists(deviceLibrary.artists)
+    override fun albums(source: MusicSource?) =
+        musicRepository.library?.let { library ->
+            val limit = effective(source)
+            val albums =
+                if (limit != null) {
+                    library.albums.filter { album -> album.songs.any { it in limit } }
+                } else {
+                    library.albums
+                }
+            listSettings.albumSort.albums(albums)
+        } ?: emptyList()
+
+    override fun artists(source: MusicSource?) =
+        musicRepository.library?.let { library ->
+            val limit = effective(source)
+            val artists =
+                if (limit != null) {
+                    library.artists.filter { artist -> artist.songs.any { it in limit } }
+                } else {
+                    library.artists
+                }
+            val sorted = listSettings.artistSort.artists(artists)
             if (homeSettings.shouldHideCollaborators) {
                 sorted.filter { it.explicitAlbums.isNotEmpty() }
             } else {
@@ -166,12 +224,40 @@ private class HomeGeneratorImpl(
             }
         } ?: emptyList()
 
-    override fun genres() =
-        musicRepository.library?.let { listSettings.genreSort.genres(it.genres) } ?: emptyList()
+    override fun genres(source: MusicSource?) =
+        musicRepository.library?.let { library ->
+            val limit = effective(source)
+            val genres =
+                if (limit != null) {
+                    library.genres.filter { genre -> genre.songs.any { it in limit } }
+                } else {
+                    library.genres
+                }
+            listSettings.genreSort.genres(genres)
+        } ?: emptyList()
 
-    override fun playlists() =
-        musicRepository.library?.let { listSettings.playlistSort.playlists(it.playlists) }
-            ?: emptyList()
+    override fun playlists(source: MusicSource?) =
+        musicRepository.library?.let { library ->
+            val limit = effective(source)
+            val playlists =
+                if (limit != null) {
+                    // Playlists are made on the device. One that is empty is only shown there, as
+                    // there is nothing in it that could say where it belongs.
+                    library.playlists.filter { playlist ->
+                        if (playlist.songs.isEmpty()) {
+                            limit == MusicSource.LOCAL
+                        } else {
+                            playlist.songs.any { it in limit }
+                        }
+                    }
+                } else {
+                    library.playlists
+                }
+            listSettings.playlistSort.playlists(playlists)
+        } ?: emptyList()
+
+    /** The source to actually limit to, which is none if there is no one to choose it. */
+    private fun effective(source: MusicSource?) = source?.takeIf { signedInToJellyfin }
 
     override fun tabs() = homeSettings.homeTabs.filterIsInstance<Tab.Visible>().map { it.type }
 }

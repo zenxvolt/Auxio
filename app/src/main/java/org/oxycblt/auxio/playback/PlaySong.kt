@@ -19,6 +19,7 @@
 package org.oxycblt.auxio.playback
 
 import org.oxycblt.auxio.IntegerTable
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre
 import org.oxycblt.musikr.MusicParent
@@ -46,6 +47,21 @@ sealed interface PlaySong {
     /** Play a Song from the entire library of songs. */
     data object FromAll : PlaySong {
         override val intCode = IntegerTable.PLAY_SONG_FROM_ALL
+    }
+
+    /**
+     * Play a song from every song of one [MusicSource], i.e only the songs of the device or only
+     * the songs of the Jellyfin server.
+     *
+     * @param source The [MusicSource] to play from.
+     */
+    data class FromSource(val source: MusicSource) : PlaySong {
+        override val intCode: Int
+            get() =
+                when (source) {
+                    MusicSource.LOCAL -> IntegerTable.PLAY_SONG_FROM_LOCAL
+                    MusicSource.JELLYFIN -> IntegerTable.PLAY_SONG_FROM_JELLYFIN
+                }
     }
 
     /** Play a song from it's album. */
@@ -102,6 +118,8 @@ sealed interface PlaySong {
             when (intCode) {
                 IntegerTable.PLAY_SONG_BY_ITSELF -> ByItself
                 IntegerTable.PLAY_SONG_FROM_ALL -> FromAll
+                IntegerTable.PLAY_SONG_FROM_LOCAL -> FromSource(MusicSource.LOCAL)
+                IntegerTable.PLAY_SONG_FROM_JELLYFIN -> FromSource(MusicSource.JELLYFIN)
                 IntegerTable.PLAY_SONG_FROM_ALBUM -> FromAlbum
                 IntegerTable.PLAY_SONG_FROM_ARTIST ->
                     if (which is Artist?) {

@@ -109,6 +109,8 @@ object IntegerTable {
     const val SORT_BY_TRACK = 0xA117
     /** Sort.Mode.ByDateAdded */
     const val SORT_BY_DATE_ADDED = 0xA118
+    /** Sort.Mode.ByRandom */
+    const val SORT_BY_RANDOM = 0xA12B
     /** ReplayGainMode.Off (No longer used but still reserved) */
     const val REPLAY_GAIN_MODE_OFF = 0xA110
     /** ReplayGainMode.Track */
@@ -153,4 +155,12 @@ object IntegerTable {
     const val FILTER_MODE_INCLUDE = 0xA129
     /** LocationMode.FileSystem */
     const val FILTER_MODE_EXCLUDE = 0xA12A
+    /** MusicSource.LOCAL */
+    const val MUSIC_SOURCE_LOCAL = 0xA12C
+    /** MusicSource.JELLYFIN */
+    const val MUSIC_SOURCE_JELLYFIN = 0xA12D
+    /** PlaySong.FromSource with MusicSource.LOCAL */
+    const val PLAY_SONG_FROM_LOCAL = 0xA12E
+    /** PlaySong.FromSource with MusicSource.JELLYFIN */
+    const val PLAY_SONG_FROM_JELLYFIN = 0xA12F
 }

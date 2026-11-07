@@ -21,6 +21,7 @@ package org.oxycblt.auxio.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.Menu
@@ -32,6 +33,7 @@ import android.widget.LinearLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.MenuRes
 import androidx.appcompat.R as AR
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.view.menu.MenuItemImpl
@@ -41,6 +43,8 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.core.view.children
 import androidx.core.view.isNotEmpty
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.core.widget.TextViewCompat
 import com.google.android.material.R as MR
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.databinding.ViewToolbarBinding
@@ -179,6 +183,44 @@ constructor(
                 isVisible = !text.isNullOrEmpty()
             }
         }
+
+    /**
+     * Turn the title into a dropdown: a drop-down arrow is shown after it, and [listener] is called
+     * when it is clicked, so that it can show what to switch the toolbar to.
+     *
+     * @param listener Called with the title when it is clicked. If null, the title goes back to
+     *   being a plain title.
+     */
+    fun setTitleDropdown(listener: OnClickListener?) {
+        binding.toolbarTitle.apply {
+            setOnClickListener(listener)
+            if (listener != null) {
+                // Only be as wide as the title so that the arrow sits right behind it, and that
+                // only the title itself reacts to touches.
+                updateLayoutParams<LinearLayout.LayoutParams> { width = LayoutParams.WRAP_CONTENT }
+                isFocusable = true
+                val ripple = TypedValue()
+                context.theme.resolveAttribute(
+                    android.R.attr.selectableItemBackground,
+                    ripple,
+                    true,
+                )
+                background = AppCompatResources.getDrawable(context, ripple.resourceId)
+                val arrow =
+                    AppCompatResources.getDrawable(context, R.drawable.drop_down_24)?.mutate()
+                arrow?.setBounds(0, 0, textSize.toInt(), textSize.toInt())
+                setCompoundDrawablesRelative(null, null, arrow, null)
+                TextViewCompat.setCompoundDrawableTintList(this, textColors)
+            } else {
+                // setOnClickListener always makes the view clickable, even with no listener.
+                isClickable = false
+                isFocusable = false
+                background = null
+                setCompoundDrawablesRelative(null, null, null, null)
+                updateLayoutParams<LinearLayout.LayoutParams> { width = LayoutParams.MATCH_PARENT }
+            }
+        }
+    }
 
     var subtitle: CharSequence?
         get() = binding.toolbarSubtitle.text

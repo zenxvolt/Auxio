@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.oxycblt.auxio.list.ListSettings
 import org.oxycblt.auxio.list.adapter.UpdateInstructions
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.playback.state.DeferredPlayback
 import org.oxycblt.auxio.playback.state.PlaybackCommand
 import org.oxycblt.auxio.playback.state.PlaybackStateManager
@@ -221,10 +222,18 @@ constructor(
         playWithImpl(song, with, ShuffleMode.ON)
     }
 
-    /** Shuffle all songs in the music library. */
-    fun shuffleAll() {
-        L.d("Shuffling all songs")
-        playFromAllImpl(null, ShuffleMode.ON)
+    /**
+     * Shuffle all songs in the music library.
+     *
+     * @param source Only shuffle the songs of this [MusicSource]. If null, every song is shuffled.
+     */
+    fun shuffleAll(source: MusicSource? = null) {
+        L.d("Shuffling all songs [source=$source]")
+        if (source != null) {
+            playFromSourceImpl(null, source, ShuffleMode.ON)
+        } else {
+            playFromAllImpl(null, ShuffleMode.ON)
+        }
     }
 
     /**
@@ -252,6 +261,7 @@ constructor(
     private fun playWithImpl(song: Song, with: PlaySong, shuffle: ShuffleMode) {
         when (with) {
             is PlaySong.FromAll -> playFromAllImpl(song, shuffle)
+            is PlaySong.FromSource -> playFromSourceImpl(song, with.source, shuffle)
             is PlaySong.FromAlbum -> playFromAlbumImpl(song, shuffle)
             is PlaySong.FromArtist -> playFromArtistImpl(song, with.which, shuffle)
             is PlaySong.FromGenre -> playFromGenreImpl(song, with.which, shuffle)
@@ -274,6 +284,20 @@ constructor(
                 commandFactory.songFromAll(song, shuffle)
             } else {
                 commandFactory.all(shuffle)
+            }
+
+        playImpl(params)
+    }
+
+    private fun playFromSourceImpl(song: Song?, source: MusicSource, shuffle: ShuffleMode) {
+        // The source can stop applying while a menu is open (i.e if the server is signed out of),
+        // in which case the song is just played from everything.
+        val params =
+            if (song != null) {
+                commandFactory.songFromSource(song, source, shuffle)
+                    ?: commandFactory.songFromAll(song, shuffle)
+            } else {
+                commandFactory.source(source, shuffle) ?: commandFactory.all(shuffle)
             }
 
         playImpl(params)

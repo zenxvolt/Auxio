@@ -63,6 +63,9 @@
         <action
             android:id="@+id/separators_settings"
             app:destination="@id/separators_dialog" />
+        <action
+            android:id="@+id/jellyfin_settings"
+            app:destination="@id/jellyfin_dialog" />
     </fragment>
 
     <fragment
@@ -99,6 +102,12 @@
         android:name="org.oxycblt.auxio.music.interpret.SeparatorsDialog"
         android:label="separators_dialog"
         tools:layout="@layout/dialog_separators" />
+
+    <dialog
+        android:id="@+id/jellyfin_dialog"
+        android:name="org.oxycblt.auxio.jellyfin.ui.JellyfinDialog"
+        android:label="jellyfin_dialog"
+        tools:layout="@layout/dialog_jellyfin" />
 
     <fragment
         android:id="@+id/about_fragment"

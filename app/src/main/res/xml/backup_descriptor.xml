@@ -4,4 +4,11 @@
     <exclude
         domain="database"
         path="music_cache.db" />
+    <!-- The Jellyfin access token and catalog only mean something on the device that made them -->
+    <exclude
+        domain="sharedpref"
+        path="jellyfin.xml" />
+    <exclude
+        domain="file"
+        path="jellyfin/" />
 </full-backup-content>

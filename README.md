@@ -63,7 +63,9 @@ precise/original dates, sort tags, and more
 - Search functionality
 - Headset autoplay
 - Stylish widgets that automatically adapt to their size
-- Completely private and offline
+- Stream from your own [Jellyfin](https://jellyfin.org) server, right inside your music library (optional), with a Local/Jellyfin switch on the home view
+- Sort songs in a random order
+- Private and offline by default, the only network access is the Jellyfin server you sign in to
 - No rounded album covers (if you want them)
 
 ## Permissions
@@ -71,6 +73,7 @@ precise/original dates, sort tags, and more
 - Storage (`READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`) to read and play your music files
 - Services (`FOREGROUND_SERVICE`, `WAKE_LOCK`) to keep the music playing in the background
 - Notifications (`POST_NOTIFICATION`) to indicate ongoing playback and music loading
+- Network (`INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`) to stream from the Jellyfin server that you sign in to. Nothing else uses the network.
 
 ## Donate
 
@@ -105,6 +108,28 @@ parsing. This adds some caveats to the build process:
 download the external code.
 3. You are **unable** to build this project on windows, as the custom Media3 build runs shell scripts that
 will only work on unix-based systems.
+
+### Building on GitHub Actions
+
+`.github/workflows/android.yml` builds the app on every push and runs the unit tests. Each run uploads:
+- `Auxio_Debug_*`, a debug APK (`org.oxycblt.auxio.debug`). Debug builds are not optimized and log
+heavily, so they feel noticeably slower than a released Auxio. They are meant for development.
+- `Auxio_Release_*`, an optimized release APK (`org.oxycblt.auxio.jellyfin`). Use this one to judge
+performance. It installs next to the official Auxio, as it is signed with a different key.
+
+Android only installs a new APK over an old one when both are signed with the same key. To make
+release APKs updatable, create a key once and add it as repository secrets (Settings > Secrets and
+variables > Actions). Without them, a throwaway key is generated for every run.
+
+```
+keytool -genkeypair -keystore auxio.jks -storetype PKCS12 -alias auxio \
+    -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 auxio.jks   # the value of ANDROID_KEYSTORE_BASE64
+```
+
+The other secrets are `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`auxio` above) and
+`ANDROID_KEY_PASSWORD`. Keep the keystore somewhere safe, losing it means that users have to
+uninstall before they can update.
 
 ### Set up Android Studio
 

@@ -23,10 +23,20 @@ import org.oxycblt.musikr.covers.Cover
 import org.oxycblt.musikr.covers.MutableCovers
 import org.oxycblt.musikr.fs.FS
 import org.oxycblt.musikr.playlist.db.StoredPlaylists
+import org.oxycblt.musikr.remote.RemoteSongs
 import org.oxycblt.musikr.tag.interpret.Naming
 import org.oxycblt.musikr.tag.interpret.Separators
 
-data class Config(val fs: FS, val storage: Storage, val interpretation: Interpretation)
+data class Config(
+    val fs: FS,
+    val storage: Storage,
+    val interpretation: Interpretation,
+    /**
+     * An optional source of songs that don't live on the device, such as a media server. These are
+     * loaded alongside, and merged into, the songs found by [fs]. Null if there is no such source.
+     */
+    val remote: RemoteSongs?,
+)
 
 /** Side-effect laden [Config] for use during music loading and [MutableLibrary] operation. */
 data class Storage(

@@ -59,6 +59,7 @@ class PlaylistSongSortDialog : SortDialog() {
             Sort.Mode.ByAlbum,
             Sort.Mode.ByDate,
             Sort.Mode.ByDuration,
+            Sort.Mode.ByRandom,
         )
 
     private fun updatePlaylist(genre: Playlist?) {

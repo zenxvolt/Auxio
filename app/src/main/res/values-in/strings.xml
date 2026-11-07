@@ -36,6 +36,34 @@
     <string name="set_audio">Audio</string>
     <string name="set_personalize">Personalisasi</string>
     <string name="set_keep_shuffle">Ingat daftar putar acak</string>
+    <!-- Jellyfin Namespace | Streaming from a Jellyfin server -->
+    <string name="set_streaming">Streaming</string>
+    <string name="set_jellyfin">Jellyfin</string>
+    <string name="lbl_jellyfin">Jellyfin</string>
+    <string name="lbl_source_local">Lokal</string>
+    <string name="set_jellyfin_desc">Streaming musik dari server Jellyfin milik Anda</string>
+    <string name="fmt_jellyfin_account">%1$s di %2$s</string>
+    <string name="desc_jellyfin">Lagu di server Jellyfin Anda ditambahkan ke pustaka musik dan diputar lewat jaringan. Lagu yang juga ada di perangkat ini diputar dari perangkat. Gunakan https:// jika server dapat diakses lewat internet.</string>
+    <string name="lbl_jellyfin_server">Alamat server</string>
+    <string name="lbl_jellyfin_username">Nama pengguna</string>
+    <string name="lbl_jellyfin_password">Kata sandi</string>
+    <string name="lbl_jellyfin_sign_in">Masuk</string>
+    <string name="lbl_jellyfin_sign_out">Keluar</string>
+    <string name="lbl_jellyfin_sync">Sinkronkan</string>
+    <string name="lbl_jellyfin_never_synced">Belum disinkronkan</string>
+    <string name="fmt_jellyfin_synced">%1$s · disinkronkan %2$s</string>
+    <string name="fmt_jellyfin_sync_failed">%1$s · menampilkan lagu dari sinkronisasi terakhir (%2$s)</string>
+    <string name="err_jellyfin_invalid_url">Alamat server tidak valid</string>
+    <string name="err_jellyfin_unreachable">Tidak dapat menjangkau server</string>
+    <string name="err_jellyfin_not_jellyfin">Itu sepertinya bukan server Jellyfin</string>
+    <string name="err_jellyfin_invalid_credentials">Nama pengguna atau kata sandi salah</string>
+    <string name="err_jellyfin_unauthorized">Sesi masuk Anda telah berakhir, silakan masuk lagi</string>
+    <string name="err_jellyfin_server_error">Server melaporkan terjadi kesalahan</string>
+    <string name="err_jellyfin_malformed">Server mengirim respons yang tidak terduga</string>
+    <string name="err_jellyfin_empty">Isi alamat server dan nama pengguna Anda</string>
+    <string name="err_remote_playback">Tidak dapat streaming dari Jellyfin. Periksa koneksi dan sesi masuk Anda.</string>
+    <string name="err_share_remote">Lagu dari Jellyfin tidak dapat dibagikan</string>
+
     <!-- Error Namespace | Error Labels -->
     <!-- Hint Namespace | EditText Hints -->
     <string name="lng_search_library">Telusuri pustaka Anda…</string>

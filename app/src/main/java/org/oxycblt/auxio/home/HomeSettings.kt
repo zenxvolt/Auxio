@@ -22,8 +22,10 @@ import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import org.oxycblt.auxio.IntegerTable
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.home.tabs.Tab
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.auxio.settings.Settings
 import org.oxycblt.auxio.util.unlikelyToBeNull
@@ -39,6 +41,8 @@ interface HomeSettings : Settings<HomeSettings.Listener> {
     var homeTabs: Array<Tab>
     /** Whether to hide artists considered "collaborators" from the home UI. */
     val shouldHideCollaborators: Boolean
+    /** The [MusicSource] that the home UI shows the music of. */
+    var homeSource: MusicSource
 
     interface Listener {
         /** Called when the [homeTabs] configuration changes. */
@@ -68,6 +72,21 @@ class HomeSettingsImpl @Inject constructor(@ApplicationContext context: Context)
 
     override val shouldHideCollaborators: Boolean
         get() = sharedPreferences.getBoolean(getString(R.string.set_key_hide_collaborators), false)
+
+    override var homeSource: MusicSource
+        get() =
+            MusicSource.fromIntCode(
+                sharedPreferences.getInt(
+                    getString(R.string.set_key_home_source),
+                    IntegerTable.MUSIC_SOURCE_LOCAL,
+                )
+            ) ?: MusicSource.LOCAL
+        set(value) {
+            sharedPreferences.edit {
+                putInt(getString(R.string.set_key_home_source), value.intCode)
+                apply()
+            }
+        }
 
     override fun migrate() {
         if (sharedPreferences.contains(OLD_KEY_LIB_TABS)) {

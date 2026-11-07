@@ -27,6 +27,7 @@ import org.oxycblt.auxio.home.tabs.Tab
 import org.oxycblt.auxio.list.ListSettings
 import org.oxycblt.auxio.list.adapter.UpdateInstructions
 import org.oxycblt.auxio.list.sort.Sort
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.auxio.playback.PlaySong
 import org.oxycblt.auxio.playback.PlaybackSettings
@@ -48,6 +49,7 @@ import timber.log.Timber as L
 class HomeViewModel
 @Inject
 constructor(
+    private val homeSettings: HomeSettings,
     private val listSettings: ListSettings,
     private val playbackSettings: PlaybackSettings,
     homeGeneratorFactory: HomeGenerator.Factory,
@@ -64,9 +66,19 @@ constructor(
     val songSort: Sort
         get() = listSettings.songSort
 
-    /** The [PlaySong] instructions to use when playing a [Song]. */
-    val playWith
-        get() = playbackSettings.playInListWith
+    /**
+     * The [PlaySong] instructions to use when playing a [Song]. Playing from "all songs" means all
+     * of the songs of the [source] when there is more than one.
+     */
+    val playWith: PlaySong
+        get() {
+            val with = playbackSettings.playInListWith
+            return if (with is PlaySong.FromAll && homeGenerator.hasJellyfin()) {
+                PlaySong.FromSource(source.value)
+            } else {
+                with
+            }
+        }
 
     /** A list of [Album]s, sorted by the preferred [Sort], to be shown in the home view. */
     val albumList: StateFlow<List<Album>>
@@ -126,6 +138,24 @@ constructor(
     private val homeGenerator = homeGeneratorFactory.create(this)
 
     /**
+     * Whether there is a Jellyfin account, which means that there are two [MusicSource]s to choose
+     * between.
+     */
+    val hasJellyfin: StateFlow<Boolean>
+        field = MutableStateFlow(homeGenerator.hasJellyfin())
+
+    private val _source = MutableStateFlow(homeSettings.homeSource)
+    /**
+     * The [MusicSource] that every list shows the music of. This is only meaningful if there is a
+     * Jellyfin account, see [hasJellyfin].
+     */
+    val source: StateFlow<MusicSource> = _source
+
+    /** The [MusicSource] to limit actions on the home view to, or null if there is only one. */
+    val activeSource: MusicSource?
+        get() = _source.value.takeIf { homeGenerator.hasJellyfin() }
+
+    /**
      * A list of [MusicType] corresponding to the current [Tab] configuration, excluding invisible
      * [Tab]s.
      */
@@ -163,30 +193,34 @@ constructor(
     }
 
     override fun invalidateEmpty() {
-        empty.value = homeGenerator.empty()
+        empty.value = homeGenerator.empty(_source.value)
+    }
+
+    override fun invalidateSources() {
+        hasJellyfin.value = homeGenerator.hasJellyfin()
     }
 
     override fun invalidateMusic(type: MusicType, instructions: UpdateInstructions) {
         when (type) {
             MusicType.SONGS -> {
                 songInstructions.put(instructions)
-                songList.value = homeGenerator.songs()
+                songList.value = homeGenerator.songs(_source.value)
             }
             MusicType.ALBUMS -> {
                 albumInstructions.put(instructions)
-                albumList.value = homeGenerator.albums()
+                albumList.value = homeGenerator.albums(_source.value)
             }
             MusicType.ARTISTS -> {
                 artistInstructions.put(instructions)
-                _artistList.value = homeGenerator.artists()
+                _artistList.value = homeGenerator.artists(_source.value)
             }
             MusicType.GENRES -> {
                 genreInstructions.put(instructions)
-                genreList.value = homeGenerator.genres()
+                genreList.value = homeGenerator.genres(_source.value)
             }
             MusicType.PLAYLISTS -> {
                 playlistInstructions.put(instructions)
-                playlistList.value = homeGenerator.playlists()
+                playlistList.value = homeGenerator.playlists(_source.value)
             }
         }
     }
@@ -194,6 +228,24 @@ constructor(
     override fun invalidateTabs() {
         currentTabTypes = homeGenerator.tabs()
         recreateTabs.put(Unit)
+    }
+
+    /**
+     * Show the music of another [MusicSource]. Every list changes with it.
+     *
+     * @param source The [MusicSource] to show.
+     */
+    fun selectSource(source: MusicSource) {
+        if (_source.value == source) {
+            return
+        }
+        L.d("Switching source to $source")
+        homeSettings.homeSource = source
+        _source.value = source
+        invalidateEmpty()
+        for (type in MusicType.entries) {
+            invalidateMusic(type, UpdateInstructions.Replace(0))
+        }
     }
 
     /**

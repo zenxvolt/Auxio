@@ -19,12 +19,17 @@
 package org.oxycblt.auxio.settings.categories
 
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.preference.Preference
 import coil3.ImageLoader
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 import org.oxycblt.auxio.R
+import org.oxycblt.auxio.jellyfin.JellyfinSessionStore
 import org.oxycblt.auxio.music.MusicViewModel
 import org.oxycblt.auxio.settings.BasePreferenceFragment
 import org.oxycblt.auxio.settings.ui.WrappedDialogPreference
@@ -40,15 +45,38 @@ import timber.log.Timber as L
 class MusicPreferenceFragment : BasePreferenceFragment(R.xml.preferences_music) {
     private val musicModel: MusicViewModel by viewModels()
     @Inject lateinit var imageLoader: ImageLoader
+    @Inject lateinit var jellyfinStore: JellyfinSessionStore
 
     override fun onOpenDialogPreference(preference: WrappedDialogPreference) {
         if (preference.key == getString(R.string.set_key_separators)) {
             L.d("Navigating to separator dialog")
             findNavController().navigateSafe(MusicPreferenceFragmentDirections.separatorsSettings())
         }
+        if (preference.key == getString(R.string.set_key_jellyfin)) {
+            L.d("Navigating to Jellyfin dialog")
+            findNavController().navigateSafe(MusicPreferenceFragmentDirections.jellyfinSettings())
+        }
     }
 
     override fun onSetupPreference(preference: Preference) {
+        if (preference.key == getString(R.string.set_key_jellyfin)) {
+            L.d("Configuring Jellyfin setting")
+            // The summary says who is signed in, so it has to follow the account.
+            viewLifecycleOwner.lifecycleScope.launch {
+                viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    jellyfinStore.changes.collect {
+                        preference.summary =
+                            jellyfinStore.session()?.let {
+                                getString(
+                                    R.string.fmt_jellyfin_account,
+                                    it.userName,
+                                    it.serverName,
+                                )
+                            } ?: getString(R.string.set_jellyfin_desc)
+                    }
+                }
+            }
+        }
         if (preference.key == getString(R.string.set_key_cover_mode)) {
             L.d("Configuring cover mode setting")
             preference.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->

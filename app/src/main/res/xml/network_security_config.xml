@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+    The only network traffic that Auxio makes is to the Jellyfin server that the user enters. Such
+    servers are usually self-hosted: often only reachable over plain HTTP on the home network, and
+    often behind a certificate from a private CA that the user has installed on the device. Neither
+    can be known beforehand, so both have to be allowed.
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

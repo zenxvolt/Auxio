@@ -18,6 +18,7 @@
  
 package org.oxycblt.auxio.list.sort
 
+import kotlin.random.Random
 import org.oxycblt.auxio.IntegerTable
 import org.oxycblt.auxio.R
 import org.oxycblt.musikr.Album
@@ -33,9 +34,13 @@ import org.oxycblt.musikr.Song
  *
  * @param mode A [Mode] dictating how to sort the list.
  * @param direction The [Direction] to sort in.
+ * @param seed Only meaningful for [Mode.ByRandom]: identifies one particular random order. The same
+ *   seed always yields the same order for the same songs, which keeps every list (and the playback
+ *   queue built from it) consistent with each other. Picking a new seed re-shuffles. Must be within
+ *   `0 until SEED_COUNT`, and is always 0 for every other [Mode].
  * @author Alexander Capehart (OxygenCobalt)
  */
-data class Sort(val mode: Mode, val direction: Direction) {
+data class Sort(val mode: Mode, val direction: Direction, val seed: Int = 0) {
     /**
      * Sort a list of [Song]s.
      *
@@ -43,6 +48,9 @@ data class Sort(val mode: Mode, val direction: Direction) {
      * @return A new list of [Song]s sorted by this [Sort]'s configuration.
      */
     fun songs(songs: Collection<Song>): List<Song> {
+        if (mode is Mode.ByRandom) {
+            return mode.shuffleSongs(songs, seed)
+        }
         val mutable = songs.toMutableList()
         mode.sortSongs(mutable, direction)
         return mutable
@@ -102,11 +110,14 @@ data class Sort(val mode: Mode, val direction: Direction) {
      * @see fromIntCode
      */
     val intCode: Int
-        // Sort's integer representation is formatted as AMMMM, where A is a bitflag
-        // representing if the sort is in ascending or descending order, and M is the
-        // integer representation of the sort mode.
+        // Sort's integer representation is formatted as SSSSAMMMM, where A is a bitflag
+        // representing if the sort is in ascending or descending order, M is the integer
+        // representation of the sort mode, and S is the seed (which is only non-zero for
+        // random sorts). The seed lives in the upper bits that the older AMMMM format never
+        // used, so previously-saved sorts still decode to the exact same value.
         get() =
-            mode.intCode.shl(1) or
+            seed.and(SEED_MASK).shl(SEED_SHIFT) or
+                mode.intCode.shl(1) or
                 when (direction) {
                     Direction.ASCENDING -> 1
                     Direction.DESCENDING -> 0
@@ -374,6 +385,34 @@ data class Sort(val mode: Mode, val direction: Direction) {
             }
         }
 
+        /**
+         * Shuffle songs into a random order. Unlike the other modes, [Direction] is meaningless
+         * here, and the order is chosen by [Sort.seed] so that it stays stable until the user
+         * explicitly asks for a new shuffle.
+         */
+        data object ByRandom : Mode {
+            override val intCode = IntegerTable.SORT_BY_RANDOM
+            override val stringRes = R.string.lbl_random
+
+            /**
+             * Shuffle [songs] according to [seed].
+             *
+             * @param songs The songs to shuffle.
+             * @param seed The seed identifying the order, see [Sort.seed].
+             * @return A new list with the same songs in the order dictated by [seed].
+             */
+            fun shuffleSongs(songs: Collection<Song>, seed: Int): List<Song> =
+                shuffleDeterministically(songs, seed) { it.uid.toString() }
+
+            override fun sortSongs(songs: MutableList<Song>, direction: Direction) {
+                // The seed-less entry point. Sort.songs uses shuffleSongs directly so that the
+                // seed is honored, this just keeps the contract of Mode intact.
+                val shuffled = shuffleSongs(songs, 0)
+                songs.clear()
+                songs.addAll(shuffled)
+            }
+        }
+
         companion object {
             fun fromIntCode(intCode: Int): Mode? =
                 when (intCode) {
@@ -386,6 +425,7 @@ data class Sort(val mode: Mode, val direction: Direction) {
                     ByDisc.intCode -> ByDisc
                     ByTrack.intCode -> ByTrack
                     ByDateAdded.intCode -> ByDateAdded
+                    ByRandom.intCode -> ByRandom
                     else -> null
                 }
         }
@@ -398,6 +438,31 @@ data class Sort(val mode: Mode, val direction: Direction) {
     }
 
     companion object {
+        /** The amount of bits in [intCode] that the seed occupies. */
+        private const val SEED_BITS = 14
+        /** Where in [intCode] the seed starts, right above the 16-bit mode code and direction. */
+        private const val SEED_SHIFT = 17
+        private const val SEED_MASK = (1 shl SEED_BITS) - 1
+        private const val MODE_MASK = 0xFFFF
+
+        /** The amount of distinct random orders there are, i.e the valid [seed]s are `0 until`. */
+        const val SEED_COUNT = 1 shl SEED_BITS
+
+        /**
+         * Pick a seed for a new random order.
+         *
+         * @param excluding A seed that must not be picked again. Pass the seed of the current sort
+         *   so that asking for a new shuffle always results in a visibly different order.
+         * @return A seed within `0 until SEED_COUNT`.
+         */
+        fun newSeed(excluding: Int? = null): Int {
+            var seed: Int
+            do {
+                seed = Random.nextInt(SEED_COUNT)
+            } while (seed == excluding)
+            return seed
+        }
+
         /**
          * Convert a [Sort] integer representation into an instance.
          *
@@ -406,12 +471,18 @@ data class Sort(val mode: Mode, val direction: Direction) {
          * @see intCode
          */
         fun fromIntCode(intCode: Int): Sort? {
-            // Sort's integer representation is formatted as AMMMM, where A is a bitflag
-            // representing on if the mode is ascending or descending, and M is the integer
-            // representation of the sort mode.
+            // Sort's integer representation is formatted as SSSSAMMMM, where A is a bitflag
+            // representing on if the mode is ascending or descending, M is the integer
+            // representation of the sort mode, and S is the seed of random sorts.
+            if (intCode < 0) {
+                // Never produced by intCode (also covers the Int.MIN_VALUE "unset" sentinel).
+                return null
+            }
             val direction = if ((intCode and 1) == 1) Direction.ASCENDING else Direction.DESCENDING
-            val mode = Mode.fromIntCode(intCode.shr(1)) ?: return null
-            return Sort(mode, direction)
+            val mode = Mode.fromIntCode(intCode.shr(1) and MODE_MASK) ?: return null
+            // Only random sorts have a seed, anything else claiming to have one is malformed.
+            val seed = if (mode is Mode.ByRandom) intCode.shr(SEED_SHIFT) and SEED_MASK else 0
+            return Sort(mode, direction, seed)
         }
     }
 }

@@ -19,14 +19,23 @@
 package org.oxycblt.musikr
 
 import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
+import org.oxycblt.musikr.fs.AddedMs
+import org.oxycblt.musikr.fs.File
 import org.oxycblt.musikr.pipeline.EvaluateStep
 import org.oxycblt.musikr.pipeline.ExploreStep
 import org.oxycblt.musikr.pipeline.Explored
 import org.oxycblt.musikr.pipeline.ExtractStep
 import org.oxycblt.musikr.pipeline.Extracted
+import org.oxycblt.musikr.pipeline.RawSong
+import org.oxycblt.musikr.remote.RemoteSong
+import org.oxycblt.musikr.remote.RemoteSongs
 import org.oxycblt.musikr.util.merge
 import org.oxycblt.musikr.util.tryAsyncWith
 
@@ -40,8 +49,8 @@ import org.oxycblt.musikr.util.tryAsyncWith
  *    contained within [Storage]. It's your job to manage long-term state.
  * 2. There are no "defaults" in Musikr. You should think carefully about the parameters you are
  *    specifying and know consider they are desirable or not.
- * 3. Musikr is currently not extendable, so if you're embedding this elsewhere you should be ready
- *    to fork and modify the source code.
+ * 3. Musikr is only extendable with songs from other sources through [RemoteSongs]. Anything else
+ *    means you should be ready to fork and modify the source code.
  */
 interface Musikr {
     /**
@@ -116,6 +125,9 @@ private class MusikrImpl(
         onProgress(IndexingProgress.Songs(0, 0))
         var explored = 0
         var loaded = 0
+        // Remote songs are mostly network wait, so fetch them alongside the on-device pipeline
+        // instead of after it. They are only waited on once all on-device songs are through.
+        val remoteTask = config.remote?.let { async(Dispatchers.IO) { loadRemote(it) } }
         val exploredChannel = Channel<Explored>(Channel.UNLIMITED)
         val exploredTask = exploreStep.explore(this, exploredChannel)
         val trackedExploredChannel = Channel<Explored>(Channel.UNLIMITED)
@@ -137,6 +149,10 @@ private class MusikrImpl(
                     onProgress(IndexingProgress.Songs(loaded, explored))
                     trackedExtractedChannel.send(item)
                 }
+                // Remote songs deliberately go last. The music graph drops songs whose UID it has
+                // already seen, so if the same song exists both on the device and remotely, the
+                // on-device one (which can play offline) is the one that is kept.
+                remoteTask?.await()?.forEach { trackedExtractedChannel.send(it) }
                 onProgress(IndexingProgress.Indeterminate)
             }
         val library = evaluateStep.evaluate(trackedExtractedChannel)
@@ -144,6 +160,54 @@ private class MusikrImpl(
         LibraryResultImpl(config, library)
     }
 }
+
+/**
+ * Load the songs of a [RemoteSongs] source. Never throws (other than for cancellation): remote
+ * songs are a bonus, so any failure just means that the library is made without them.
+ */
+private suspend fun loadRemote(remote: RemoteSongs): List<RawSong> {
+    val songs =
+        try {
+            withTimeoutOrNull(REMOTE_TIMEOUT_MS) { remote.load() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Remote songs failed to load, continuing without them", e)
+            return emptyList()
+        }
+    if (songs == null) {
+        Log.e(TAG, "Remote songs took longer than ${REMOTE_TIMEOUT_MS}ms, continuing without them")
+        return emptyList()
+    }
+    return songs.map { it.toRawSong() }
+}
+
+private fun RemoteSong.toRawSong() =
+    RawSong(
+        file =
+            File(
+                uri = uri,
+                path = path,
+                addedMs = FixedAddedMs(addedMs),
+                modifiedMs = modifiedMs,
+                mimeType = mimeType,
+                size = size,
+                parent = null,
+            ),
+        properties = properties,
+        tags = tags,
+        cover = cover,
+        addedMs = addedMs,
+    )
+
+private class FixedAddedMs(private val ms: Long) : AddedMs {
+    override suspend fun resolve() = ms
+}
+
+/** A last-resort guard, remote sources are expected to have much tighter timeouts of their own. */
+private const val REMOTE_TIMEOUT_MS = 120_000L
+
+private const val TAG = "Musikr"
 
 private class LibraryResultImpl(private val config: Config, override val library: MutableLibrary) :
     LibraryResult {

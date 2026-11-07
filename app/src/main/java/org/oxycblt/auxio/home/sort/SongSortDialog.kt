@@ -47,5 +47,6 @@ class SongSortDialog : SortDialog() {
             Sort.Mode.ByDate,
             Sort.Mode.ByDuration,
             Sort.Mode.ByDateAdded,
+            Sort.Mode.ByRandom,
         )
 }

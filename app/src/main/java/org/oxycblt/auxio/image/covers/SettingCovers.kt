@@ -24,6 +24,7 @@ import java.util.UUID
 import javax.inject.Inject
 import org.oxycblt.auxio.image.CoverMode
 import org.oxycblt.auxio.image.ImageSettings
+import org.oxycblt.auxio.jellyfin.JellyfinCovers
 import org.oxycblt.musikr.covers.Cover
 import org.oxycblt.musikr.covers.Covers
 import org.oxycblt.musikr.covers.FDCover
@@ -45,7 +46,11 @@ interface SettingCovers {
 
     companion object {
         suspend fun immutable(context: Context): Covers<FDCover> =
-            ChainedCovers(StoredCovers(CoverStorage.at(context.coversDir())), FSCovers(context))
+            ChainedCovers(
+                StoredCovers(CoverStorage.at(context.coversDir())),
+                FSCovers(context),
+                JellyfinCovers(context),
+            )
     }
 }
 
@@ -69,7 +74,7 @@ class SettingCoversImpl @Inject constructor(private val imageSettings: ImageSett
                 revisionedTranscoding,
             )
         val fsCovers = MutableFSCovers(context)
-        return MutableChainedCovers(storedCovers, fsCovers)
+        return MutableChainedCovers(storedCovers, fsCovers, JellyfinCovers(context))
     }
 }
 

@@ -79,11 +79,24 @@ Musikr is a highly opinionated, multi-threaded music loading library for Android
   - `fs`: File system access configuration
   - `storage`: Persistent storage components
   - `interpretation`: Tag interpretation rules
+  - `remote`: Optional source of songs that are not files on the device (see below)
 
 - **Storage**: Side-effect laden components
   - `cache`: Metadata caching (Room database)
   - `covers`: Cover art storage and retrieval
   - `storedPlaylists`: User playlist management
+
+### Remote Songs
+Musikr can be extended with songs that come from somewhere other than the file system by
+implementing `RemoteSongs` and passing it as `Config.remote`. Auxio uses this for Jellyfin.
+
+- Metadata is supplied by the source (`RemoteSong`), so remote songs skip `ExploreStep` and
+  `ExtractStep` (and the tag cache) and enter the pipeline right before `EvaluateStep`.
+- `RemoteSong.uri` is whatever the player should open, and `RemoteSong.cover` can be any `Cover`.
+- The source is loaded concurrently with the on-device pipeline. Failures and timeouts never fail
+  the load, the library is just made without the remote songs.
+- Remote songs are sent last. The music graph drops songs with a UID that it has already seen, so
+  when the same song exists on the device and remotely, the on-device song is kept.
 
 ### Data Models
 - **Music**: Base interface for all music items

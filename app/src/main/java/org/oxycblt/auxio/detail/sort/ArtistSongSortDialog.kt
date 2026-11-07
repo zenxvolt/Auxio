@@ -53,7 +53,13 @@ class ArtistSongSortDialog : SortDialog() {
     }
 
     override fun getModeChoices() =
-        listOf(Sort.Mode.ByName, Sort.Mode.ByAlbum, Sort.Mode.ByDate, Sort.Mode.ByDuration)
+        listOf(
+            Sort.Mode.ByName,
+            Sort.Mode.ByAlbum,
+            Sort.Mode.ByDate,
+            Sort.Mode.ByDuration,
+            Sort.Mode.ByRandom,
+        )
 
     private fun updateArtist(artist: Artist?) {
         if (artist == null) {

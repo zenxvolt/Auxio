@@ -22,8 +22,10 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.MenuItem
+import android.view.View
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuCompat
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
@@ -53,6 +55,7 @@ import org.oxycblt.auxio.list.ListViewModel
 import org.oxycblt.auxio.list.SelectionFragment
 import org.oxycblt.auxio.list.menu.Menu
 import org.oxycblt.auxio.music.IndexingState
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.auxio.music.MusicViewModel
 import org.oxycblt.auxio.music.PlaylistDecision
@@ -166,6 +169,7 @@ class HomeFragment : SelectionFragment<FragmentHomeBinding>() {
         collect(homeModel.recreateTabs.flow, ::handleRecreate)
         collect(homeModel.chooseMusicLocations.flow, ::handleChooseFolders)
         collectImmediately(homeModel.currentTabType, ::updateCurrentTab)
+        collectImmediately(homeModel.hasJellyfin, homeModel.source, ::updateSource)
         collect(detailModel.toShow.flow, ::handleShow)
         collect(listModel.menu.flow, ::handleMenu)
         collectImmediately(listModel.selected, ::updateSelection)
@@ -267,6 +271,50 @@ class HomeFragment : SelectionFragment<FragmentHomeBinding>() {
                 MusicType.GENRES -> R.id.home_genre_recycler
                 MusicType.PLAYLISTS -> R.id.home_playlist_recycler
             }
+    }
+
+    private fun updateSource(hasJellyfin: Boolean, source: MusicSource) {
+        // Without a Jellyfin account there is nothing to choose between, the title is just the
+        // title of the app and does nothing.
+        val current = if (hasJellyfin) source else MusicSource.LOCAL
+        requireBinding().homeNormalToolbar.apply {
+            title =
+                getString(
+                    when (current) {
+                        MusicSource.LOCAL -> R.string.info_app_name
+                        MusicSource.JELLYFIN -> R.string.lbl_jellyfin
+                    }
+                )
+            setTitleDropdown(
+                if (hasJellyfin) {
+                    View.OnClickListener { showSourceMenu(it, current) }
+                } else {
+                    null
+                }
+            )
+        }
+    }
+
+    private fun showSourceMenu(anchor: View, current: MusicSource) {
+        PopupMenu(requireContext(), anchor).apply {
+            inflate(R.menu.source_home)
+            menu
+                .findItem(
+                    when (current) {
+                        MusicSource.LOCAL -> R.id.source_local
+                        MusicSource.JELLYFIN -> R.id.source_jellyfin
+                    }
+                )
+                .isChecked = true
+            setOnMenuItemClickListener { item ->
+                homeModel.selectSource(
+                    if (item.itemId == R.id.source_jellyfin) MusicSource.JELLYFIN
+                    else MusicSource.LOCAL
+                )
+                true
+            }
+            show()
+        }
     }
 
     private fun handleRecreate(recreate: Unit?) {

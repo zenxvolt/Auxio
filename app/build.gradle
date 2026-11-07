@@ -47,6 +47,12 @@ android {
         }
 
         release {
+            // The official app is signed with a key that nobody else has, so a build of a fork can
+            // never be installed over it. CI passes a suffix here to install next to it instead.
+            if (project.hasProperty("auxio.applicationIdSuffix")) {
+                applicationIdSuffix project.property("auxio.applicationIdSuffix")
+            }
+
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
@@ -82,6 +88,10 @@ kotlin {
 }
 
 dependencies {
+    testImplementation "junit:junit:4.13.2"
+    // The org.json bundled in the Android SDK is only a stub in local unit tests, use the real one.
+    testImplementation "org.json:json:20240303"
+
     androidTestImplementation "androidx.test:runner:1.7.0"
     androidTestImplementation "androidx.test.ext:junit:1.3.0"
 

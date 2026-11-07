@@ -31,6 +31,10 @@ import org.oxycblt.auxio.util.systemBarInsetsCompat
 abstract class SortDialog :
     ViewBindingBottomSheetDialogFragment<DialogSortBinding>(), ClickableListListener<Sort.Mode> {
     private val modeAdapter = SortModeAdapter(@Suppress("LeakingThis") this)
+    // The seed that will be used if the user applies a random sort. It's picked once per dialog
+    // so that what is compared and what is applied are the same thing, and it always differs from
+    // the seed of the current sort so that applying "random" again shuffles the list again.
+    private var pendingSeed = Sort.newSeed(excluding = null)
 
     abstract fun getInitialSort(): Sort?
 
@@ -62,6 +66,7 @@ abstract class SortDialog :
 
         val initial = getInitialSort()
         if (initial != null) {
+            pendingSeed = Sort.newSeed(excluding = initial.seed)
             modeAdapter.setSelected(initial.mode)
             updateDirection(initial.direction)
         }
@@ -82,15 +87,29 @@ abstract class SortDialog :
 
     private fun updateButtons() {
         val binding = requireBinding()
+        // Direction means nothing when shuffling, so make that obvious.
+        val directional = modeAdapter.currentMode != Sort.Mode.ByRandom
+        binding.sortHeader.alpha = if (directional) 1f else DISABLED_ALPHA
+        binding.sortDirectionAsc.isEnabled = directional
+        binding.sortDirectionDsc.isEnabled = directional
         binding.sortSave.isEnabled = getCurrentSort().let { it != null && it != getInitialSort() }
     }
 
     private fun getCurrentSort(): Sort? {
         val binding = requireBinding()
         val mode = modeAdapter.currentMode ?: return null
+        if (mode == Sort.Mode.ByRandom) {
+            // Since a random sort carries a new seed, it'll always be different from the
+            // initial sort, which is what lets the user re-shuffle by pressing OK again.
+            return Sort(mode, Sort.Direction.ASCENDING, pendingSeed)
+        }
         val direction =
             if (binding.sortDirectionAsc.isChecked) Sort.Direction.ASCENDING
             else Sort.Direction.DESCENDING
         return Sort(mode, direction)
+    }
+
+    private companion object {
+        const val DISABLED_ALPHA = 0.38f
     }
 }

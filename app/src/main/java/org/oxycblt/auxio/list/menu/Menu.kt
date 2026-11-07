@@ -52,6 +52,7 @@ sealed interface Menu {
                         is PlaySong.FromGenre -> playWith.which?.uid
                         is PlaySong.FromPlaylist -> playWith.which.uid
                         is PlaySong.FromAll,
+                        is PlaySong.FromSource,
                         is PlaySong.FromAlbum,
                         is PlaySong.ByItself -> null
                     }

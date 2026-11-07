@@ -28,6 +28,15 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/set_streaming">
+
+        <org.oxycblt.auxio.settings.ui.WrappedDialogPreference
+            app:key="@string/set_key_jellyfin"
+            app:summary="@string/set_jellyfin_desc"
+            app:title="@string/set_jellyfin" />
+
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/set_images">
 
         <org.oxycblt.auxio.settings.ui.IntListPreference

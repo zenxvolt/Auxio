@@ -171,6 +171,14 @@ private class FlexibleListDiffer<T>(
         runGeneration: Int,
         callback: (() -> Unit)?,
     ) {
+        // The very list that is already shown can't change anything. This happens all the time:
+        // views read a StateFlow right away and then collect it, which delivers the same list
+        // twice, and diffing a big library against itself is wasted work during navigation.
+        if (oldList === newList) {
+            callback?.invoke()
+            return
+        }
+
         // fast simple remove all
         if (newList.isEmpty()) {
             L.d("Short-circuiting diff to remove all")

@@ -18,11 +18,14 @@
  
 package org.oxycblt.auxio.playback.service
 
+import android.content.ContentResolver
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.ContentDataSource
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.ExtractorsFactory
@@ -40,6 +43,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.io.IOException
+import org.oxycblt.auxio.BuildConfig
+import org.oxycblt.auxio.jellyfin.JellyfinAuthorizer
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -52,9 +58,28 @@ class SystemModule {
     ): MediaSource.Factory = ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
 
     @Provides
-    fun dataSourceFactory(@ApplicationContext context: Context) =
-        // We only ever open conte tURIs, so only provide those data sources.
-        DataSource.Factory { ContentDataSource(context) }
+    fun dataSourceFactory(
+        @ApplicationContext context: Context,
+        authorizer: JellyfinAuthorizer,
+    ): DataSource.Factory {
+        // Songs are either on the device (content URIs) or streamed from the Jellyfin server that
+        // the user signed in to. Nothing else is ever opened, and the access token is only ever
+        // sent to that one server: the authorizer refuses every other address.
+        val http =
+            DefaultHttpDataSource.Factory()
+                .setUserAgent("Auxio/${BuildConfig.VERSION_NAME}")
+                .setConnectTimeoutMs(HTTP_TIMEOUT_MS)
+                .setReadTimeoutMs(HTTP_TIMEOUT_MS)
+        return ResolvingDataSource.Factory(DefaultDataSource.Factory(context, http)) { dataSpec ->
+            when (dataSpec.uri.scheme) {
+                ContentResolver.SCHEME_CONTENT -> dataSpec
+                "http",
+                "https" ->
+                    dataSpec.withAdditionalHeaders(authorizer.headersFor(dataSpec.uri.toString()))
+                else -> throw IOException("Refusing to open ${dataSpec.uri.scheme} URI")
+            }
+        }
+    }
 
     @Provides
     fun extractorsFactory() = ExtractorsFactory {
@@ -74,3 +99,5 @@ class SystemModule {
         )
     }
 }
+
+private const val HTTP_TIMEOUT_MS = 15_000

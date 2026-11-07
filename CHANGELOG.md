@@ -1,3 +1,20 @@
+## Unreleased
+
+## What's New
+- Added Jellyfin streaming. Sign in under Settings > Content > Streaming and the songs on your server
+join your library, with covers, search, playlists, and queue behaving as they do for local songs
+	- Songs that exist both on the device and on the server are played from the device
+	- Once signed in, tap "Auxio" at the top of the home view to switch between your library on the
+	device and the one on the server. Each has its own songs, albums, artists, genres and playlists
+	and the shuffle button follows the one you chose
+	- The last catalog is kept, so remote songs stay visible when the server can't be reached
+	- Formats Android cannot decode (ex. WMA, APE) are left out
+- Added a "Random" sort for songs. Choosing it again shuffles again.
+- Added an optimized release APK to the GitHub Actions build.
+
+## What's Fixed
+- The top bar now stays transparent instead of getting a tinted background when a screen is scrolled.
+
 ## v4.1.5
 
 ## What's Fixed

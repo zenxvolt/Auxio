@@ -22,6 +22,7 @@ import javax.inject.Inject
 import org.oxycblt.auxio.list.ListSettings
 import org.oxycblt.auxio.list.sort.Sort
 import org.oxycblt.auxio.music.MusicRepository
+import org.oxycblt.auxio.music.MusicSource
 import org.oxycblt.auxio.playback.PlaybackSettings
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
@@ -53,6 +54,12 @@ interface PlaybackCommand {
 
         fun songFromAll(song: Song, shuffle: ShuffleMode): PlaybackCommand?
 
+        fun songFromSource(
+            song: Song,
+            source: MusicSource,
+            shuffle: ShuffleMode,
+        ): PlaybackCommand?
+
         fun songFromAlbum(song: Song, shuffle: ShuffleMode): PlaybackCommand?
 
         fun songFromArtist(song: Song, artist: Artist?, shuffle: ShuffleMode): PlaybackCommand?
@@ -62,6 +69,8 @@ interface PlaybackCommand {
         fun songFromPlaylist(song: Song, playlist: Playlist, shuffle: ShuffleMode): PlaybackCommand?
 
         fun all(shuffle: ShuffleMode): PlaybackCommand?
+
+        fun source(source: MusicSource, shuffle: ShuffleMode): PlaybackCommand?
 
         fun songs(songs: List<Song>, shuffle: ShuffleMode): PlaybackCommand?
 
@@ -105,6 +114,9 @@ constructor(
 
     override fun songFromAll(song: Song, shuffle: ShuffleMode) = newCommand(song, shuffle)
 
+    override fun songFromSource(song: Song, source: MusicSource, shuffle: ShuffleMode) =
+        newCommand(song, null, songsOf(source), listSettings.songSort, shuffle)
+
     override fun songFromAlbum(song: Song, shuffle: ShuffleMode) =
         newCommand(song, song.album, listSettings.albumSongSort, shuffle)
 
@@ -118,6 +130,9 @@ constructor(
         newCommand(song, playlist, playlist.songs, shuffle)
 
     override fun all(shuffle: ShuffleMode) = newCommand(null, shuffle)
+
+    override fun source(source: MusicSource, shuffle: ShuffleMode) =
+        newCommand(null, null, songsOf(source), listSettings.songSort, shuffle)
 
     override fun songs(songs: List<Song>, shuffle: ShuffleMode) =
         newCommand(null, null, songs, shuffle)
@@ -149,6 +164,9 @@ constructor(
             null
         }
     }
+
+    private fun songsOf(source: MusicSource): Collection<Song> =
+        musicRepository.library?.songs?.filter { it in source } ?: emptyList()
 
     private fun newCommand(song: Song?, shuffle: ShuffleMode): PlaybackCommand? {
         val library = musicRepository.library ?: return null
